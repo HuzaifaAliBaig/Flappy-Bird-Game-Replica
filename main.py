@@ -1,150 +1,141 @@
 import pygame
-import sys
 import random
+import sys
+
+SCREEN_WIDTH = 700
+SCREEN_HEIGHT = 600
+GRAVITY = 0.5    
+FLAP_SPEED = -4
+PIPE_GAP = 150
+PIPE_SPACING = 300
+PIPE_WIDTH = 50
+BIRD_WIDTH = 50
+BIRD_HEIGHT = 50
+
+# Colors
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
 
 # Initialize Pygame
 pygame.init()
-
-# Game window dimensions
-SCREEN_WIDTH, SCREEN_HEIGHT = 288, 512
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Flappy Bird By Huzaifa Baig")
 
 # Load assets
-BG_IMAGE = pygame.image.load("background.png")
-BIRD_IMAGE = pygame.image.load("bird.png")
-PIPE_IMAGE = pygame.image.load("pipe.png")
-GAME_FONT = pygame.font.Font(None, 32)
+bird_image = pygame.image.load("bird.png")
+bird_image = pygame.transform.scale(bird_image, (BIRD_WIDTH, BIRD_HEIGHT))
+pipe_image = pygame.image.load("pipe.png")
+background_image = pygame.image.load("background.png")
+background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
-def create_pipe():
-    pipe_height = random.randint(100, 400)
-    bottom_pipe = PIPE_IMAGE.get_rect(midtop=(SCREEN_WIDTH + 100, pipe_height))
-    top_pipe = PIPE_IMAGE.get_rect(midbottom=(SCREEN_WIDTH + 100, pipe_height - 150))
-    return bottom_pipe, top_pipe
+# Bird class
+class Bird:
+    def __init__(self):
+        self.x = 100
+        self.y = SCREEN_HEIGHT // 2
+        self.velocity = 0
 
-def move_pipes(pipes):
-    for bottom_pipe, top_pipe in pipes:
-        bottom_pipe.centerx -= 2
-        top_pipe.centerx -= 2
-    return pipes
+    def flap(self):
+        self.velocity = FLAP_SPEED
 
-def draw_pipes(pipes, screen):
-    for bottom_pipe, top_pipe in pipes:
-        if bottom_pipe.bottom >= SCREEN_HEIGHT:
-            screen.blit(PIPE_IMAGE, bottom_pipe)
-        else:
-            flipped_pipe = pygame.transform.flip(PIPE_IMAGE, False, True)
-            screen.blit(flipped_pipe, top_pipe)
+    def update(self):
+        self.velocity += GRAVITY
+        self.y += self.velocity
 
-def collision(bird_rect, pipes):
-    for p in pipes:
-        if bird_rect.colliderect(p[0]) or bird_rect.colliderect(p[1]):
-            print("Collision detected!")
-            return True
-    if bird_rect.top <= -50 or bird_rect.bottom >= SCREEN_HEIGHT:
-        print("Out of bounds!")
-        return True
-    return False
+    def draw(self):
+        screen.blit(bird_image, (self.x, self.y))
 
-# def main():
-#     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-#     pygame.display.set_caption("Flappy Bird")
-#     pygame.display.set_icon(BIRD_IMAGE)
-#     clock = pygame.time.Clock()
-#
-#     bird_rect = BIRD_IMAGE.get_rect(center=(50, SCREEN_HEIGHT // 2))
-#     pipes = [create_pipe()]
-#
-#     gravity = 0.25
-#     bird_movement = 0
-#     score = 0
-#
-#     while True:
-#         screen.blit(BG_IMAGE, (0, 0))
-#
-#         for event in pygame.event.get():
-#             if event.type == pygame.QUIT:
-#                 pygame.quit()
-#                 sys.exit()
-#             if event.type == pygame.KEYDOWN:
-#                 if event.key == pygame.K_SPACE:
-#                     bird_movement = 0
-#                     bird_movement -= 7
-#
-#         bird_movement += gravity
-#         bird_rect.centery += bird_movement
-#         screen.blit(BIRD_IMAGE, bird_rect)
-#
-#         pipes = move_pipes(pipes)
-#         draw_pipes(pipes, screen)
-#
-#         if collision(bird_rect, pipes):
-#             break
-#
-#         if pipes[0].centerx < -50:
-#             pipes.pop(0)
-#             pipes.append(create_pipe())
-#             score += 1
-#
-#         score_text = GAME_FONT.render(f"Score: {score}", True, (255, 255, 255))
-#         screen.blit(score_text, (10, 10))
-#
-#         pygame.display.update()
-#         clock.tick(60)
-def main():
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-    pygame.display.set_caption("Flappy Bird")
-    pygame.display.set_icon(BIRD_IMAGE)
-    clock = pygame.time.Clock()
+    def is_off_screen(self):
+        return self.y > SCREEN_HEIGHT or self.y < 0
 
-    bird_rect = BIRD_IMAGE.get_rect(center=(10, SCREEN_HEIGHT // 2))
-    pipes = []
+# Pipe class
+class Pipe:
+    def __init__(self, x):
+        self.x = x
+        self.top_height = random.randint(100, SCREEN_HEIGHT - PIPE_GAP - 100)
+        self.bottom_height = SCREEN_HEIGHT - self.top_height - PIPE_GAP
 
-    gravity = 0.25
-    bird_movement = 0
+    def update(self):
+        self.x -= 2
+
+    def draw(self):
+        screen.blit(pipe_image, (self.x, 0), (0, 0, PIPE_WIDTH, self.top_height))
+        screen.blit(pipe_image, (self.x, SCREEN_HEIGHT - self.bottom_height), (0, 500 - self.bottom_height, PIPE_WIDTH, self.bottom_height))
+
+    def is_off_screen(self):
+        return self.x < -PIPE_WIDTH
+
+# Game setup
+def reset_game():
+    global bird, pipes, score
+    bird = Bird()
+    pipes = [Pipe(SCREEN_WIDTH + i * PIPE_SPACING) for i in range(3)]
     score = 0
-    game_active = False
 
-    while True:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN:
+reset_game()
+clock = pygame.time.Clock()
+game_active = False
+
+# Game loop
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                if not game_active:
                     game_active = True
-                if game_active and event.key == pygame.K_SPACE:
-                    bird_movement = 0
-                    bird_movement -= 7
+                    reset_game()
+                else:
+                    bird.flap()
 
-        screen.blit(BG_IMAGE, (0, 0))
+    # Update
+    if game_active:
+        bird.update()
 
-        if game_active:
-            bird_movement += gravity
-            bird_rect.centery += bird_movement
-            if bird_rect.top <= 0:
-                bird_rect.top = 0
-            if bird_rect.bottom >= SCREEN_HEIGHT:
-                bird_rect.bottom = SCREEN_HEIGHT
-            screen.blit(BIRD_IMAGE, bird_rect)
+        # Collision detection
+        if bird.is_off_screen():
+            game_active = False
 
-            pipes = move_pipes(pipes)
-            draw_pipes(pipes, screen)
-
-            if collision(bird_rect, pipes):
-                game_active = False
-
-            if pipes and pipes[0].centerx < -50:
-                pipes.pop(0)
-                pipes.append(create_pipe())
+        for pipe in pipes:
+            pipe.update()
+            if pipe.is_off_screen():
                 score += 1
+                pipes.remove(pipe)
 
-            score_text = GAME_FONT.render(f"Score: {score}", True, (255, 255, 255))
-            screen.blit(score_text, (10, 10))
+        for pipe in pipes:
+            if pipe.x <= bird.x + BIRD_WIDTH // 2 <= pipe.x + PIPE_WIDTH:
+                if bird.y < pipe.top_height or bird.y > SCREEN_HEIGHT - pipe.bottom_height:
+                    game_active = False
+
+        # Spawn new pipes
+        if pipes[-1].x <= SCREEN_WIDTH - PIPE_SPACING:
+            pipes.append(Pipe(SCREEN_WIDTH))
+
+    # Draw
+    screen.blit(background_image, (0, 0))  # Draw the background first
+
+    for pipe in pipes:
+        pipe.draw()
+
+    bird.draw()
+
+    if not game_active:
+        font = pygame.font.Font(None, 36)
+        if score == 0:
+            text_surface = font.render("Press Space to Begin", True, BLACK)
         else:
-            start_text = GAME_FONT.render("Press Enter to Start", True, (255, 255, 255))
-            screen.blit(start_text, (SCREEN_WIDTH // 2 - start_text.get_width() // 2, SCREEN_HEIGHT // 2))
+            text_surface = font.render(f"Try Again! Score: {score}. Press Space to Play Again", True, BLACK)
 
-        pygame.display.update()
-        clock.tick(60)
+        text_rect = text_surface.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+        screen.blit(text_surface, text_rect)
 
-if __name__ == "__main__":
-    main()
+    if game_active:
+        # Draw score
+        font = pygame.font.Font(None, 36)
+        score_surface = font.render(f"Score: {score}", True, BLACK)
+        screen.blit(score_surface, (10, 10))
+
+    pygame.display.flip()
+    clock.tick(60)
